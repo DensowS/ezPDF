@@ -88,6 +88,7 @@ try {
   await ui.locator('mark.search-match.active').first().waitFor();
   await ui.getByRole('button', { name: 'Nächster Treffer' }).click();
   await ui.getByText('2 / 2', { exact: true }).waitFor();
+  await ui.waitForFunction(() => document.querySelector('input[aria-label="Seite"]').value === '2');
   assert.equal(await ui.getByRole('spinbutton', { name: 'Seite', exact: true }).inputValue(), '2');
   await ui.getByRole('button', { name: 'Suche schließen' }).click();
   await ui.getByRole('button', { name: 'Zu Seite 1', exact: true }).click();
@@ -241,6 +242,16 @@ try {
   );
   await ui.getByRole('button', { name: 'Vergrößern', exact: true }).click({ clickCount: 3 });
   await ui.locator('[data-page="19"] .textLayer').waitFor();
+  await app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0].setContentSize(1024, 640),
+  );
+  await openFile(fixture);
+  await ui.getByRole('button', { name: 'Dokument durchsuchen' }).click();
+  await ui.getByRole('textbox', { name: 'Suchtext' }).fill('needle');
+  await ui.getByText('1 / 2', { exact: true }).waitFor();
+  await ui.getByRole('button', { name: 'Nächster Treffer' }).click();
+  await ui.getByText('2 / 2', { exact: true }).waitFor();
+  await ui.waitForFunction(() => document.querySelector('input[aria-label="Seite"]').value === '2');
   assert.deepEqual(errors, []);
   console.log(
     'PASS: viewer isolation, text selection/copy, search, thumbnails, fit/zoom, explicit editor, field correction, cancel/discard/save, print to PDF, save and reopen.',

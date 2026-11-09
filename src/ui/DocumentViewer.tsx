@@ -78,17 +78,17 @@ export function DocumentViewer(props: Props) {
         frame.current = requestAnimationFrame(() => {
           const view = viewport.current;
           if (!view) return;
-          const y = view.getBoundingClientRect().top + Math.min(view.clientHeight * 0.25, 180);
+          const visible = view.getBoundingClientRect();
           let best = 0,
-            distance = Infinity;
+            area = -1;
           view.querySelectorAll<HTMLElement>('[data-page]').forEach((element) => {
             const bounds = element.getBoundingClientRect();
-            const delta =
-              bounds.top <= y && bounds.bottom >= y
-                ? 0
-                : Math.min(Math.abs(bounds.top - y), Math.abs(bounds.bottom - y));
-            if (delta < distance) {
-              distance = delta;
+            const intersection = Math.max(
+              0,
+              Math.min(bounds.bottom, visible.bottom) - Math.max(bounds.top, visible.top),
+            );
+            if (intersection > area) {
+              area = intersection;
               best = Number(element.dataset.page);
             }
           });
