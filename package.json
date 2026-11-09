@@ -13,7 +13,7 @@
     "desktop": "npm run build && electron .",
     "build": "tsc --noEmit && vite build",
     "test": "tsx --test tests/*.test.ts",
-    "dist": "npm run build && electron-builder --win nsis --x64",
+    "dist": "npm run build && electron-builder --win nsis --x64 --publish never",
     "test:desktop": "node tests/desktop.mjs"
   },
   "dependencies": {
