@@ -2,6 +2,8 @@ const { app, BrowserWindow, dialog, ipcMain, protocol, net, Menu } = require('el
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
+app.setName('ezPDF');
+app.setAppUserModelId('de.ezpdf.desktop');
 protocol.registerSchemesAsPrivileged([
   { scheme: 'ezpdf', privileges: { standard: true, secure: true, supportFetchAPI: true } },
 ]);
@@ -64,6 +66,7 @@ else {
       minHeight: 700,
       backgroundColor: '#101217',
       title: 'ezPDF',
+      icon: path.join(__dirname, '../build/icon.png'),
       webPreferences: {
         preload: path.join(__dirname, 'preload.cjs'),
         contextIsolation: true,
@@ -106,6 +109,19 @@ else {
         await fs.rm(temp, { force: true });
       }
       return true;
+    });
+    ipcMain.handle('pdf:print', async (event) => {
+      if (!valid(event)) throw new Error('Ungültiger Aufruf');
+      return new Promise((resolve, reject) =>
+        window.webContents.print(
+          { silent: false, printBackground: true, margins: { marginType: 'none' } },
+          (success, reason) => {
+            if (success) resolve(true);
+            else if (/cancel/i.test(reason)) resolve(false);
+            else reject(new Error(reason || 'Druckauftrag fehlgeschlagen.'));
+          },
+        ),
+      );
     });
     ipcMain.on('pdf:ready', (event) => {
       if (valid(event)) {

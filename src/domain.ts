@@ -24,6 +24,7 @@ declare global {
     desktop?: {
       open(): Promise<DocumentFile | null>;
       save(name: string, bytes: Uint8Array): Promise<boolean>;
+      print(): Promise<boolean>;
       ready(): void;
       onFile(callback: (file: DocumentFile) => void): () => void;
       onClose(callback: () => void): () => void;

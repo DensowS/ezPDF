@@ -1,251 +1,161 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  FileText,
-  FolderOpen,
-  Save,
-  Minus,
-  Plus,
-  ChevronLeft,
-  ChevronRight,
-  ScanLine,
-  Type,
-  PanelRightClose,
-  Check,
-  ShieldCheck,
-  Undo2,
-  X,
-  LoaderCircle,
-} from 'lucide-react';
-import type { DocumentFile, Field } from '../domain';
-import { discoverFields, openPdf, savePdf, type Pdf } from '../pdf/engine';
+import { FileText, LoaderCircle, ShieldCheck, X } from 'lucide-react';
+import type { Field } from '../domain';
+import { useDocumentSession, errorMessage } from '../state/useDocumentSession';
+import { DocumentViewer, type ZoomMode } from './DocumentViewer';
+import { Toolbar } from './Toolbar';
+import { Welcome } from './Welcome';
+import { Thumbnails } from './Thumbnails';
+import { FieldInspector } from './FieldInspector';
+import { ConfirmDialog } from './ConfirmDialog';
+import { SearchBar } from './SearchBar';
+import { useSearch } from './useSearch';
+import logo from '../../assets/brand/ezpdf-icon.svg';
 
 export function App() {
-  const [file, setFile] = useState<DocumentFile | null>(null),
-    [pdf, setPdf] = useState<Pdf | null>(null);
-  const [fields, setFields] = useState<Field[]>([]),
-    [page, setPage] = useState(0),
+  const session = useDocumentSession(),
+    search = useSearch(session.pdf);
+  const [page, setPage] = useState(0),
+    [request, setRequest] = useState({ index: 0, token: 0 });
+  const [mode, setMode] = useState<ZoomMode>('page'),
+    [customZoom, setCustomZoom] = useState(1),
     [zoom, setZoom] = useState(1);
-  const [size, setSize] = useState({ width: 595, height: 842 }),
-    [busy, setBusy] = useState('');
-  const [error, setError] = useState(''),
-    [notice, setNotice] = useState(''),
-    [dirty, setDirty] = useState(false);
-  const [manual, setManual] = useState(false),
-    [sidebar, setSidebar] = useState(true),
+  const [thumbnails, setThumbnails] = useState(false),
+    [manual, setManual] = useState(false),
     [selected, setSelected] = useState('');
-  const [history, setHistory] = useState<Field[][]>([]),
-    [closePrompt, setClosePrompt] = useState(false);
-  const canvas = useRef<HTMLCanvasElement>(null),
-    input = useRef<HTMLInputElement>(null),
-    pdfRef = useRef<Pdf | null>(null);
-  const busyRef = useRef(false),
-    dirtyRef = useRef(false);
-  dirtyRef.current = dirty;
-  const load = useCallback(async (incoming: DocumentFile) => {
-    if (busyRef.current) return;
-    if (
-      dirtyRef.current &&
-      !window.confirm('Ungespeicherte Änderungen verwerfen und andere PDF öffnen?')
-    )
-      return;
-    busyRef.current = true;
-    setBusy('PDF öffnen und Felder erkennen …');
-    setError('');
-    setNotice('');
-    let opened: Pdf | undefined;
-    try {
-      opened = await openPdf(incoming.bytes);
-      const detected = await discoverFields(opened);
-      await pdfRef.current?.loadingTask.destroy();
-      pdfRef.current = opened;
-      setPdf(opened);
-      setFile(incoming);
-      setFields(detected);
-      setPage(0);
-      setHistory([]);
-      setDirty(false);
+  const input = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    document.title = session.file ? `${session.file.name} — ezPDF` : 'ezPDF';
+  }, [session.file]);
+  useEffect(() => {
+    setPage(0);
+    setRequest({ index: 0, token: Date.now() });
+    setMode('page');
+    setSelected('');
+    setManual(false);
+  }, [session.generation]);
+  useEffect(() => {
+    if (!session.editing) {
+      setManual(false);
       setSelected('');
-      setNotice(`${detected.length} Felder erkannt. Bitte Zuordnung prüfen.`);
-    } catch (e) {
-      await opened?.loadingTask.destroy();
-      setError('PDF konnte nicht geladen werden: ' + message(e));
-    } finally {
-      busyRef.current = false;
-      setBusy('');
     }
-  }, []);
+  }, [session.editing]);
+  const goTo = useCallback(
+    (index: number) => {
+      const target = Math.max(0, Math.min((session.pdf?.numPages || 1) - 1, index));
+      setPage(target);
+      setRequest((previous) => ({ index: target, token: previous.token + 1 }));
+    },
+    [session.pdf],
+  );
   useEffect(() => {
-    const unsubscribe = window.desktop?.onFile(load);
-    const close = window.desktop?.onClose(() => setClosePrompt(true));
-    window.desktop?.ready();
-    return () => {
-      unsubscribe?.();
-      close?.();
-    };
-  }, [load]);
-  useEffect(() => {
-    window.desktop?.setDirty(dirty);
-  }, [dirty]);
-  useEffect(() => {
-    const handler = (e: BeforeUnloadEvent) => {
-      if (dirty && !window.desktop) e.preventDefault();
-    };
-    window.addEventListener('beforeunload', handler);
-    return () => window.removeEventListener('beforeunload', handler);
-  }, [dirty]);
-  useEffect(() => {
-    if (!pdf || !canvas.current) return;
-    let canceled = false,
-      render: { cancel(): void; promise: Promise<unknown> } | undefined;
-    pdf
-      .getPage(page + 1)
-      .then(async (p) => {
-        if (canceled || !canvas.current) return;
-        const view = p.getViewport({ scale: zoom, rotation: 0 });
-        const element = canvas.current,
-          ratio = window.devicePixelRatio || 1;
-        element.width = Math.floor(view.width * ratio);
-        element.height = Math.floor(view.height * ratio);
-        setSize({ width: view.width, height: view.height });
-        render = p.render({
-          canvas: element,
-          canvasContext: element.getContext('2d')!,
-          viewport: view,
-          transform: [ratio, 0, 0, ratio, 0, 0],
-          annotationMode: 0,
-        });
-        await render.promise;
-      })
-      .catch((e) => {
-        if (!canceled) setError(message(e));
-      });
-    return () => {
-      canceled = true;
-      render?.cancel();
-    };
-  }, [pdf, page, zoom]);
-  const open = async () => {
-    if (window.desktop) {
-      try {
-        const chosen = await window.desktop.open();
-        if (chosen) await load(chosen);
-      } catch (e) {
-        setError(message(e));
-      }
-    } else input.current?.click();
-  };
-  const save = async (): Promise<boolean> => {
-    if (!file || busyRef.current) return false;
-    busyRef.current = true;
-    setBusy('PDF speichern …');
-    setError('');
+    const match = search.matches[search.active];
+    if (match) goTo(match.page);
+  }, [search.matches, search.active, goTo]);
+  const onPatch = useCallback(
+    (id: string, patch: Partial<Field>) => session.dispatch({ type: 'patch', id, patch }),
+    [session.dispatch],
+  );
+  const addField = useCallback(
+    (field: Field) => {
+      session.dispatch({ type: 'add', field });
+      setManual(false);
+      setSelected(field.id);
+    },
+    [session.dispatch],
+  );
+  function selectField(id: string) {
+    setSelected(id);
+    const field = session.history.current.find((field) => field.id === id);
+    if (field && field.page !== page) goTo(field.page);
+  }
+  async function open() {
+    if (session.busy) return;
+    if (!window.desktop) {
+      input.current?.click();
+      return;
+    }
     try {
-      const bytes = await savePdf(file.bytes, fields),
-        name = file.name.replace(/\.pdf$/i, '') + '-bearbeitet.pdf';
-      let saved = true;
-      if (window.desktop) saved = await window.desktop.save(name, bytes);
-      else {
-        const url = URL.createObjectURL(
-          new Blob([new Uint8Array(bytes)], { type: 'application/pdf' }),
-        );
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = name;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 10000);
-      }
-      if (saved) {
-        setDirty(false);
-        setNotice('PDF gespeichert. Die Formularfelder bleiben ausfüllbar.');
-      }
-      return saved;
-    } catch (e) {
-      setError('Speichern fehlgeschlagen: ' + message(e));
-      return false;
-    } finally {
-      busyRef.current = false;
-      setBusy('');
+      const file = await window.desktop.open();
+      if (file) await session.requestOpen(file);
+    } catch (error) {
+      session.setError(errorMessage(error));
     }
-  };
+  }
+  function changeZoom(value: number) {
+    setMode('custom');
+    setCustomZoom(Math.max(0.15, Math.min(3, value)));
+  }
   useEffect(() => {
-    const key = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'o') {
-        e.preventDefault();
+    const handler = (event: KeyboardEvent) => {
+      if (session.confirmation) return;
+      const modifier = event.ctrlKey || event.metaKey,
+        key = event.key.toLowerCase();
+      if (modifier && key === 'o') {
+        event.preventDefault();
         void open();
       }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        void save();
+      if (modifier && key === 's') {
+        event.preventDefault();
+        if (session.editing) void session.save();
+      }
+      if (modifier && key === 'p' && session.pdf) {
+        event.preventDefault();
+        void session.print();
+      }
+      if (modifier && key === 'f' && session.pdf) {
+        event.preventDefault();
+        search.setOpen(true);
+      }
+      if (session.busy) return;
+      if (modifier && session.editing && (key === 'z' || key === 'y')) {
+        event.preventDefault();
+        session.dispatch({ type: key === 'y' || event.shiftKey ? 'redo' : 'undo' });
+      }
+      const target = event.target as HTMLElement;
+      if (
+        !session.pdf ||
+        modifier ||
+        target.closest('input,select,textarea,[contenteditable="true"]')
+      )
+        return;
+      if (event.key === 'PageDown') {
+        event.preventDefault();
+        goTo(page + 1);
+      }
+      if (event.key === 'PageUp') {
+        event.preventDefault();
+        goTo(page - 1);
+      }
+      if (event.key === 'Home') {
+        event.preventDefault();
+        goTo(0);
+      }
+      if (event.key === 'End') {
+        event.preventDefault();
+        goTo(session.pdf.numPages - 1);
+      }
+      if (event.key === 'Escape') {
+        setManual(false);
+        search.close();
       }
     };
-    window.addEventListener('keydown', key);
-    return () => window.removeEventListener('keydown', key);
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
   });
-  const change = (id: string, value: string) => {
-    setHistory((h) => [...h.slice(-99), fields]);
-    const target = fields.find((f) => f.id === id)!;
-    setFields((all) =>
-      all.map((f) =>
-        f.id === id || (target.nativeName && f.nativeName === target.nativeName)
-          ? { ...f, value }
-          : f,
-      ),
-    );
-    setDirty(true);
-  };
-  const undo = () => {
-    const previous = history.at(-1);
-    if (previous) {
-      setFields(previous);
-      setHistory((h) => h.slice(0, -1));
-      setDirty(true);
-    }
-  };
-  const editor = (field: Field, overlay: boolean) => {
-    const props = {
-      'aria-label': field.label,
-      disabled: field.readOnly || !!busy,
-      onFocus: () => setSelected(field.id),
-      onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-        change(
-          field.id,
-          field.kind === 'checkbox'
-            ? (e.target as HTMLInputElement).checked
-              ? 'true'
-              : ''
-            : e.target.value,
-        ),
-    };
-    if (field.kind === 'checkbox')
-      return <input {...props} type="checkbox" checked={field.value === 'true'} />;
-    if (field.kind === 'choice')
-      return (
-        <select {...props} value={field.value}>
-          <option value="">Auswählen</option>
-          {field.options?.map((o) => (
-            <option key={o}>{o}</option>
-          ))}
-        </select>
-      );
-    return (
-      <input
-        {...props}
-        value={field.value}
-        placeholder={overlay ? '' : 'Hier eingeben …'}
-        style={overlay ? { fontSize: Math.min(11, field.height * 0.48) * zoom } : undefined}
-      />
-    );
-  };
-  const current = fields.filter((f) => f.page === page);
   return (
     <div
       className="app"
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={async (e) => {
-        e.preventDefault();
-        const chosen = e.dataTransfer.files[0];
-        if (chosen)
-          await load({ name: chosen.name, bytes: new Uint8Array(await chosen.arrayBuffer()) });
+      data-mode={session.editing ? 'edit' : 'view'}
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={async (event) => {
+        event.preventDefault();
+        const file = event.dataTransfer.files[0];
+        if (file && !session.busy)
+          await session.requestOpen({
+            name: file.name,
+            bytes: new Uint8Array(await file.arrayBuffer()),
+          });
       }}
     >
       <input
@@ -253,339 +163,148 @@ export function App() {
         type="file"
         accept="application/pdf,.pdf"
         hidden
-        onChange={async (e) => {
-          const chosen = e.target.files?.[0];
-          if (chosen)
-            await load({ name: chosen.name, bytes: new Uint8Array(await chosen.arrayBuffer()) });
-          e.target.value = '';
+        onChange={async (event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = '';
+          if (file)
+            await session.requestOpen({
+              name: file.name,
+              bytes: new Uint8Array(await file.arrayBuffer()),
+            });
         }}
       />
       <header>
         <div className="brand">
-          <div className="brand-icon">
-            <FileText size={22} />
-          </div>
+          <img src={logo} alt="ezPDF Logo" />
           <span>
             ez<span>PDF</span>
           </span>
-          <small>DESKTOP</small>
         </div>
         <div className="filename">
-          {file ? (
+          {session.file ? (
             <>
               <FileText size={15} />
-              {file.name}
-              {dirty && <span className="dot" title="Ungespeicherte Änderungen" />}
+              {session.file.name}
+              {session.dirty && <span className="dot" title="Ungespeicherte Änderungen" />}
             </>
           ) : (
             'Dein Raum für Dokumente'
           )}
         </div>
         <span className="local">
-          <ShieldCheck size={14} /> Lokal auf deinem Gerät
+          <ShieldCheck size={14} />
+          Lokal auf deinem Gerät
         </span>
       </header>
-      <nav>
-        <div className="toolgroup">
-          <button onClick={open} disabled={!!busy}>
-            <FolderOpen size={17} />
-            Öffnen
-          </button>
-          <button disabled={!file || !!busy} onClick={() => void save()} className="primary">
-            <Save size={16} />
-            Speichern unter
-          </button>
-        </div>
-        <div className="toolgroup">
-          <button
-            onClick={undo}
-            disabled={!history.length || !!busy}
-            title="Letzte Änderung rückgängig"
-          >
-            <Undo2 size={17} />
-          </button>
-          <i />
-          <button
-            onClick={() => setManual(!manual)}
-            disabled={!file || !!busy}
-            className={manual ? 'active' : ''}
-          >
-            <Type size={17} />
-            Text ergänzen
-          </button>
-          <button
-            className={!manual && file ? 'active' : ''}
-            disabled={!file}
-            onClick={() => setManual(false)}
-          >
-            <ScanLine size={17} />
-            Formular
-          </button>
-        </div>
-        <div className="toolbar-end">
-          <button
-            disabled={!pdf || page === 0 || !!busy}
-            onClick={() => setPage((p) => p - 1)}
-            aria-label="Vorherige Seite"
-          >
-            <ChevronLeft size={17} />
-          </button>
-          <span>{pdf ? `${page + 1} / ${pdf.numPages}` : '– / –'}</span>
-          <button
-            disabled={!pdf || page >= pdf.numPages - 1 || !!busy}
-            onClick={() => setPage((p) => p + 1)}
-            aria-label="Nächste Seite"
-          >
-            <ChevronRight size={17} />
-          </button>
-          <i />
-          <button
-            onClick={() => setZoom((z) => Math.max(0.4, z - 0.1))}
-            disabled={!file}
-            aria-label="Verkleinern"
-          >
-            <Minus size={16} />
-          </button>
-          <span>{Math.round(zoom * 100)} %</span>
-          <button
-            onClick={() => setZoom((z) => Math.min(2.5, z + 0.1))}
-            disabled={!file}
-            aria-label="Vergrößern"
-          >
-            <Plus size={16} />
-          </button>
-          <button onClick={() => setSidebar((s) => !s)} aria-label="Felderleiste umschalten">
-            <PanelRightClose size={17} />
-          </button>
-        </div>
-      </nav>
-      {(error || busy) && (
-        <div role={error ? 'alert' : 'status'} className={'banner ' + (error ? 'error' : '')}>
-          {busy && <LoaderCircle className="spin" size={16} />} {error || busy}
-          {error && (
-            <button onClick={() => setError('')} aria-label="Meldung schließen">
+      <Toolbar
+        hasFile={!!session.pdf}
+        busy={!!session.busy}
+        editing={session.editing}
+        page={page}
+        total={session.pdf?.numPages || 0}
+        zoom={zoom}
+        mode={mode}
+        manual={manual}
+        thumbnails={thumbnails}
+        canUndo={!!session.history.past.length}
+        canRedo={!!session.history.future.length}
+        onOpen={() => void open()}
+        onSave={() => void session.save()}
+        onEdit={() => void session.enterEditor()}
+        onLeave={session.leaveEditor}
+        onPrint={() => void session.print()}
+        onSearch={() => search.setOpen((value) => !value)}
+        onThumbnails={() => setThumbnails((value) => !value)}
+        onManual={() => setManual((value) => !value)}
+        onUndo={() => session.dispatch({ type: 'undo' })}
+        onRedo={() => session.dispatch({ type: 'redo' })}
+        onPage={goTo}
+        onZoom={changeZoom}
+        onMode={setMode}
+      />
+      {search.open && (
+        <SearchBar
+          query={search.query}
+          onQuery={search.setQuery}
+          count={search.matches.length}
+          active={search.active}
+          searching={search.searching}
+          error={search.error}
+          onNext={search.next}
+          onClose={search.close}
+        />
+      )}
+      {(session.error || session.busy) && (
+        <div
+          role={session.error ? 'alert' : 'status'}
+          className={`banner ${session.error ? 'error' : ''}`}
+        >
+          {session.busy && <LoaderCircle size={16} className="spin" />}
+          {session.error || session.busy}
+          {session.error && (
+            <button onClick={() => session.setError('')} aria-label="Meldung schließen">
               <X size={15} />
             </button>
           )}
         </div>
       )}
       <main>
-        <section className={'workspace ' + (manual ? 'placing' : '')}>
-          {!pdf ? (
-            <div className="welcome">
-              <div className="welcome-icon">
-                <FileText size={42} strokeWidth={1.3} />
-              </div>
-              <span className="eyebrow">WENIGER AUFWAND. MEHR ERLEDIGT.</span>
-              <h1>
-                Deine PDFs.
-                <br />
-                <span>Einfach bearbeitet.</span>
-              </h1>
-              <p>
-                Öffne ein Dokument, fülle erkannte Felder aus
-                <br />
-                und speichere deine fertige PDF.
-              </p>
-              <button className="primary large" onClick={open} disabled={!!busy}>
-                <FolderOpen size={18} />
-                PDF öffnen
-              </button>
-              <small>oder eine PDF hierher ziehen · Strg + O</small>
-              <div className="feature-pills">
-                <span>
-                  <ScanLine size={15} />
-                  Automatische Felderkennung
-                </span>
-                <span>
-                  <ShieldCheck size={15} />
-                  Ohne Cloud
-                </span>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="paper-meta">
-                <span>SEITE {page + 1}</span>
-                <span>
-                  {manual
-                    ? 'Klicke auf die Seite, um ein Textfeld zu ergänzen'
-                    : 'Erkannte Felder direkt im Dokument ausfüllen'}
-                </span>
-              </div>
-              <div
-                className="paper"
-                style={{ width: size.width, height: size.height }}
-                onClick={(e) => {
-                  if (!manual || busy) return;
-                  const rect = e.currentTarget.getBoundingClientRect(),
-                    width = size.width / zoom,
-                    height = size.height / zoom;
-                  const field: Field = {
-                    id: crypto.randomUUID(),
-                    source: 'manual',
-                    kind: 'text',
-                    page,
-                    label: 'Ergänzter Text',
-                    value: '',
-                    x: Math.max(0, Math.min((e.clientX - rect.left) / zoom, width - 160)),
-                    y: Math.max(0, Math.min((e.clientY - rect.top) / zoom, height - 24)),
-                    width: Math.min(160, width),
-                    height: 24,
-                  };
-                  setHistory((h) => [...h.slice(-99), fields]);
-                  setFields((f) => [...f, field]);
-                  setManual(false);
-                  setSelected(field.id);
-                  setDirty(true);
-                }}
-              >
-                <canvas ref={canvas} style={{ width: size.width, height: size.height }} />
-                {current.map((field) => (
-                  <div
-                    key={field.id}
-                    className={'field-overlay ' + (selected === field.id ? 'selected' : '')}
-                    style={{
-                      left: field.x * zoom,
-                      top: field.y * zoom,
-                      width: field.width * zoom,
-                      height: field.height * zoom,
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {editor(field, true)}
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </section>
-        {sidebar && (
-          <aside>
-            <div className="aside-heading">
-              <div>
-                <span className="eyebrow">DEIN DOKUMENT</span>
-                <h2>
-                  Formularfelder <b>{fields.length}</b>
-                </h2>
-              </div>
-              <ScanLine size={20} />
-            </div>
-            {!file ? (
-              <div className="aside-empty">
-                <div className="empty-lines">
-                  <span />
-                  <span />
-                  <span />
-                </div>
-                <h3>Wir finden die Felder für dich.</h3>
-                <p>
-                  Bestehende Formularfelder und graue Eingabeflächen werden beim Öffnen automatisch
-                  erkannt.
-                </p>
-              </div>
-            ) : (
-              <>
-                <div className="aside-note">
-                  <Check size={16} />
-                  <span>
-                    {fields.length} Felder im Dokument
-                    <br />
-                    <small>Erkennung und Beschriftung bitte prüfen.</small>
-                  </span>
-                </div>
-                <div className="fields-list">
-                  {fields.length === 0 && (
-                    <p>
-                      Keine Felder erkannt. Über „Text ergänzen“ kannst du eigene Textfelder
-                      platzieren.
-                    </p>
-                  )}
-                  {fields.map((field, index) => (
-                    <div
-                      key={field.id}
-                      className={'field-card ' + (selected === field.id ? 'focused' : '')}
-                      onClick={() => {
-                        setPage(field.page);
-                        setSelected(field.id);
-                      }}
-                    >
-                      <div className="field-title">
-                        <span>{String(index + 1).padStart(2, '0')}</span>
-                        <label>{field.label}</label>
-                        {field.source !== 'native' && (
-                          <button
-                            title="Feld entfernen"
-                            aria-label={'Feld entfernen: ' + field.label}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setHistory((h) => [...h.slice(-99), fields]);
-                              setFields((f) => f.filter((item) => item.id !== field.id));
-                              setDirty(true);
-                            }}
-                          >
-                            <X size={13} />
-                          </button>
-                        )}
-                      </div>
-                      {editor(field, false)}
-                      <small>
-                        Seite {field.page + 1} ·{' '}
-                        {field.source === 'native'
-                          ? 'PDF-Formular'
-                          : field.source === 'detected'
-                            ? 'Automatisch erkannt'
-                            : 'Ergänzter Text'}
-                        {field.readOnly ? ' · Schreibgeschützt' : ''}
-                      </small>
-                    </div>
-                  ))}
-                </div>
-              </>
+        {session.pdf ? (
+          <>
+            {thumbnails && <Thumbnails pdf={session.pdf} current={page} onPage={goTo} />}
+            <DocumentViewer
+              pdf={session.pdf}
+              firstSize={session.firstSize}
+              mode={mode}
+              customZoom={customZoom}
+              request={request}
+              currentPage={page}
+              editing={session.editing}
+              fields={session.history.current}
+              selected={selected}
+              manual={manual}
+              busy={!!session.busy}
+              matches={search.matches}
+              activeMatch={search.active}
+              onCurrent={setPage}
+              onZoom={setZoom}
+              onSelect={setSelected}
+              onPatch={onPatch}
+              onAdd={addField}
+              onError={session.setError}
+            />
+            {session.editing && (
+              <FieldInspector
+                pdf={session.pdf}
+                fields={session.history.current}
+                selected={selected}
+                disabled={!!session.busy}
+                onSelect={selectField}
+                onPatch={onPatch}
+                onRemove={(id) => session.dispatch({ type: 'remove', id })}
+              />
             )}
-            <div className="aside-footer">
-              <ShieldCheck size={16} />
-              <span>
-                Deine Dokumente bleiben bei dir.
-                <br />
-                <small>Keine Uploads. Kein Konto erforderlich.</small>
-              </span>
-            </div>
-          </aside>
+          </>
+        ) : (
+          <Welcome onOpen={() => void open()} busy={!!session.busy} />
         )}
       </main>
       <footer>
         <span>
           <span className="status-dot" />
-          {notice || 'Bereit für dein nächstes Dokument'}
+          {session.notice || 'Bereit für dein nächstes Dokument'}
         </span>
         <span>
-          ezPDF <span className="version">0.1.0</span>
+          {session.editing ? 'Bearbeiten' : 'Lesemodus'}
+          <span className="version">ezPDF 0.2.0</span>
         </span>
       </footer>
-      {closePrompt && (
-        <div className="modal-backdrop">
-          <div role="dialog" aria-modal="true" aria-labelledby="close-title" className="modal">
-            <h2 id="close-title">Änderungen speichern?</h2>
-            <p>Dein Dokument enthält ungespeicherte Änderungen.</p>
-            <div>
-              <button onClick={() => setClosePrompt(false)}>Abbrechen</button>
-              <button onClick={() => window.desktop?.allowClose()}>Verwerfen</button>
-              <button
-                className="primary"
-                onClick={async () => {
-                  if (await save()) window.desktop?.allowClose();
-                }}
-              >
-                Speichern
-              </button>
-            </div>
-          </div>
-        </div>
+      {session.confirmation && (
+        <ConfirmDialog
+          busy={!!session.busy}
+          onChoice={(choice) => void session.resolveConfirmation(choice)}
+        />
       )}
     </div>
   );
-}
-function message(e: unknown): string {
-  return e instanceof Error ? e.message : String(e);
 }

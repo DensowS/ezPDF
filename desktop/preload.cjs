@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('desktop', {
   open: () => ipcRenderer.invoke('pdf:open'),
   save: (name, bytes) => ipcRenderer.invoke('pdf:save', name, bytes),
+  print: () => ipcRenderer.invoke('pdf:print'),
   ready: () => ipcRenderer.send('pdf:ready'),
   onFile: (callback) => {
     const listener = (_, file) => callback(file);

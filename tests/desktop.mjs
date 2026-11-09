@@ -6,124 +6,244 @@ import { PDFDocument, rgb } from 'pdf-lib';
 const results = path.resolve('test-results');
 await fs.mkdir(results, { recursive: true });
 const synthetic = await PDFDocument.create();
-const page = synthetic.addPage([595, 842]);
-page.drawRectangle({
+const first = synthetic.addPage([595, 842]);
+first.drawText('ezPDF test document', { x: 90, y: 750, size: 18 });
+first.drawText('Find this needle on page one.', { x: 90, y: 700, size: 12 });
+first.drawRectangle({
   x: 90,
   y: 600,
   width: 410,
   height: 26,
   color: rgb(235 / 255, 238 / 255, 240 / 255),
 });
-page.drawText('Name', { x: 90, y: 585, size: 9 });
+first.drawText('Name', { x: 90, y: 585, size: 9 });
 const native = synthetic.getForm().createTextField('existing');
 native.setText('Original');
-native.addToPage(page, { x: 90, y: 500, width: 200, height: 26 });
-const check = synthetic.getForm().createCheckBox('consent');
-check.addToPage(page, { x: 90, y: 450, width: 18, height: 18 });
-synthetic.addPage([595, 842]);
+native.addToPage(first, { x: 90, y: 500, width: 200, height: 26 });
+synthetic
+  .getForm()
+  .createCheckBox('consent')
+  .addToPage(first, { x: 90, y: 450, width: 18, height: 18 });
+synthetic.addPage([595, 842]).drawText('Another needle on page two.', { x: 90, y: 700, size: 12 });
 const fixture = path.join(results, 'fixture.pdf');
 await fs.writeFile(fixture, await synthetic.save());
-const desktopEnv = { ...process.env };
-delete desktopEnv.ELECTRON_RUN_AS_NODE;
+const env = { ...process.env };
+delete env.ELECTRON_RUN_AS_NODE;
 const app = await electron.launch({
   ...(process.env.EZPDF_EXECUTABLE ? { executablePath: process.env.EZPDF_EXECUTABLE } : {}),
   args: [
     ...(process.env.EZPDF_EXECUTABLE ? [] : [path.resolve('.')]),
     '--user-data-dir=' + path.join(results, 'profile-' + Date.now()),
   ],
-  env: desktopEnv,
+  env,
 });
 try {
   const ui = await app.firstWindow();
-  ui.setDefaultTimeout(12000);
-  ui.on('console', (msg) => {
-    if (msg.type() === 'error') console.log('Renderer:', msg.text());
-  });
+  ui.setDefaultTimeout(15000);
   const errors = [];
-  ui.on('pageerror', (e) => errors.push(e.message));
-  await ui.getByText('Deine PDFs.').waitFor();
+  ui.on('pageerror', (error) => {
+    console.log('PageError:', error.message, error.stack);
+    errors.push(error.message);
+  });
+  assert.equal(await app.evaluate(({ app }) => app.getName()), 'ezPDF');
+  await ui.getByRole('heading', { name: 'Einfach öffnen. Entspannt lesen.' }).waitFor();
   await ui.screenshot({ path: path.join(results, 'welcome.png') });
+  async function idle() {
+    await ui.locator('.banner:not(.error)').waitFor({ state: 'hidden' });
+    assert.equal(
+      await ui.locator('.banner.error').count(),
+      0,
+      await ui.locator('body').innerText(),
+    );
+  }
   async function openFile(filename) {
     await app.evaluate(({ dialog }, filename) => {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filename] });
     }, filename);
     await ui.getByRole('button', { name: 'Öffnen', exact: true }).click();
-    await ui
-      .getByText(/Felder erkannt\. Bitte Zuordnung prüfen/)
-      .waitFor()
-      .catch(async (error) => {
-        console.log(await ui.locator('body').innerText());
-        await ui.screenshot({ path: path.join(results, 'failure.png') });
-        throw error;
-      });
-    await ui.locator('.banner').waitFor({ state: 'hidden' });
+    await ui.locator('.filename').getByText(path.basename(filename), { exact: true }).waitFor();
+    await idle();
+    assert.equal(await ui.locator('.app').getAttribute('data-mode'), 'view');
+    assert.equal(await ui.locator('.field-overlay,.field-card,.edit-toolbar').count(), 0);
+    await ui.locator('.page-paint canvas').first().waitFor();
+  }
+  async function edit() {
+    await ui.getByRole('button', { name: 'Bearbeiten', exact: true }).click();
+    await ui.locator('.edit-toolbar').waitFor();
+    await idle();
   }
   await openFile(fixture);
+  assert.equal(await ui.locator('.page-shell').count(), 2);
+  await ui.screenshot({ path: path.join(results, 'viewer.png') });
+  await ui.getByRole('button', { name: 'An Seitenbreite anpassen' }).click();
+  assert.equal(await ui.getByLabel('Zoom', { exact: true }).inputValue(), 'width');
+  await ui.getByRole('button', { name: 'Ganze Seite einpassen' }).click();
+  await ui.getByRole('button', { name: 'Seitenübersicht umschalten' }).click();
+  await ui.getByRole('button', { name: 'Zu Seite 2', exact: true }).click();
+  assert.equal(await ui.getByRole('spinbutton', { name: 'Seite', exact: true }).inputValue(), '2');
+  await ui.getByRole('button', { name: 'Zu Seite 1', exact: true }).click();
+  await ui.getByRole('button', { name: 'Dokument durchsuchen' }).click();
+  await ui.getByRole('textbox', { name: 'Suchtext' }).fill('needle');
+  await ui.getByText('1 / 2', { exact: true }).waitFor();
+  await ui.locator('mark.search-match.active').first().waitFor();
+  await ui.getByRole('button', { name: 'Nächster Treffer' }).click();
+  await ui.getByText('2 / 2', { exact: true }).waitFor();
+  assert.equal(await ui.getByRole('spinbutton', { name: 'Seite', exact: true }).inputValue(), '2');
+  await ui.getByRole('button', { name: 'Suche schließen' }).click();
+  await ui.getByRole('button', { name: 'Zu Seite 1', exact: true }).click();
+  const text = ui.locator('.textLayer > span').filter({ hasText: 'ezPDF test document' }).first();
+  await text.dblclick();
+  await ui.keyboard.press('Control+c');
+  const selection = await ui.evaluate(() => getSelection()?.toString() || '');
+  assert(selection.length > 0);
+  assert.equal(await app.evaluate(({ clipboard }) => clipboard.readText()), selection);
+  await ui.evaluate(() => getSelection()?.removeAllRanges());
+  await ui.getByRole('button', { name: 'Seitenübersicht umschalten' }).click();
+  await edit();
   assert.equal(await ui.locator('.field-card').count(), 3);
   await ui.locator('.field-card input:not([type=checkbox])').first().fill('Erika Muster');
   await ui.locator('.field-card input[type=checkbox]').check();
+  await ui.getByRole('button', { name: 'Name', exact: true }).click();
+  await ui.getByRole('textbox', { name: 'Feldbeschriftung' }).fill('Vollständiger Name');
+  await ui.getByRole('spinbutton', { name: 'Feld x', exact: true }).fill('100');
+  await ui.getByRole('spinbutton', { name: 'Feld width', exact: true }).fill('380');
+  const moveHandle = await ui
+    .getByRole('button', { name: 'Feld verschieben', exact: true })
+    .boundingBox();
+  await ui.mouse.move(moveHandle.x + moveHandle.width / 2, moveHandle.y + moveHandle.height / 2);
+  await ui.mouse.down();
+  await ui.mouse.move(
+    moveHandle.x + moveHandle.width / 2 + 10,
+    moveHandle.y + moveHandle.height / 2 + 5,
+  );
+  await ui.mouse.up();
+  assert(
+    Number(await ui.getByRole('spinbutton', { name: 'Feld x', exact: true }).inputValue()) > 100,
+  );
+  await ui.getByRole('spinbutton', { name: 'Feld x', exact: true }).fill('100');
+  const resizeHandle = await ui
+    .getByRole('button', { name: 'Feldgröße ändern', exact: true })
+    .boundingBox();
+  await ui.mouse.move(resizeHandle.x + 4, resizeHandle.y + 4);
+  await ui.mouse.down();
+  await ui.mouse.move(resizeHandle.x + 16, resizeHandle.y + 4);
+  await ui.mouse.up();
+  assert(
+    Number(await ui.getByRole('spinbutton', { name: 'Feld width', exact: true }).inputValue()) >
+      380,
+  );
+  await ui.getByRole('spinbutton', { name: 'Feld width', exact: true }).fill('380');
   await ui.getByRole('button', { name: 'Nächste Seite' }).click();
-  await ui.getByRole('button', { name: 'Text ergänzen' }).click();
-  await ui.locator('.paper').click({ position: { x: 150, y: 200 } });
+  await ui.getByRole('button', { name: 'Text ergänzen', exact: true }).click();
+  await ui.locator('.page-shell[data-page="1"] .paper').click({ position: { x: 120, y: 200 } });
   await ui.locator('.field-card input:not([type=checkbox])').last().fill('Zusatztext');
+  await ui.getByRole('button', { name: 'Lesemodus', exact: true }).click();
+  await ui.getByRole('dialog').waitFor();
+  await ui.getByRole('button', { name: 'Abbrechen', exact: true }).click();
+  assert.equal(await ui.locator('.app').getAttribute('data-mode'), 'edit');
   const saved = path.join(results, 'saved.pdf');
   await app.evaluate(({ dialog }) => {
     dialog.showSaveDialog = async () => ({ canceled: true });
   });
   await ui.getByRole('button', { name: 'Speichern unter' }).click();
-  await ui.locator('.banner').waitFor({ state: 'hidden' });
-  assert.equal(await ui.locator('.dot').count(), 1, 'Canceled save must keep the dirty state');
+  await idle();
+  assert.equal(await ui.locator('.dot').count(), 1);
+  const printed = path.join(results, 'printed.pdf');
+  await app.evaluate(({ BrowserWindow }) => {
+    const win = BrowserWindow.getAllWindows()[0];
+    win.webContents.print = async (_options, callback) => {
+      try {
+        globalThis.__ezpdfPrinted = Array.from(
+          await win.webContents.printToPDF({ printBackground: true, preferCSSPageSize: true }),
+        );
+        callback(true);
+      } catch (error) {
+        callback(false, error.message);
+      }
+    };
+  });
+  await ui.getByRole('button', { name: 'Drucken', exact: true }).click();
+  await ui.getByText('Dokument an den Druckdialog übergeben.', { exact: true }).waitFor();
+  const printBytes = new Uint8Array(await app.evaluate(() => globalThis.__ezpdfPrinted));
+  await fs.writeFile(printed, printBytes);
+  const printout = await PDFDocument.load(printBytes);
+  assert.equal(printout.getPageCount(), 2);
+  assert.equal(await ui.locator('.dot').count(), 1, 'Printing must not clear unsaved edits');
   await app.evaluate(({ dialog }, target) => {
     dialog.showSaveDialog = async () => ({ canceled: false, filePath: target });
   }, saved);
   await ui.getByRole('button', { name: 'Speichern unter' }).click();
-  await ui.getByText('PDF gespeichert. Die Formularfelder bleiben ausfüllbar.').waitFor();
+  await ui
+    .getByText('PDF gespeichert. Die Formularfelder bleiben ausfüllbar.', { exact: true })
+    .waitFor();
+  await idle();
   const reopened = await PDFDocument.load(await fs.readFile(saved));
-  assert.equal(reopened.getPageCount(), 2);
   assert.equal(reopened.getForm().getTextField('existing').getText(), 'Erika Muster');
   assert.equal(reopened.getForm().getCheckBox('consent').isChecked(), true);
   assert.equal(reopened.getForm().getFields().length, 4);
-  assert(
-    reopened
-      .getForm()
-      .getFields()
-      .some((f) => 'getText' in f && f.getText() === 'Zusatztext'),
+  const corrected = reopened
+    .getForm()
+    .getFields()
+    .find((field) => field.getName().startsWith('ezPDF.gray'));
+  assert.equal(
+    corrected.acroField.dict.get(reopened.context.obj('TU')).decodeText(),
+    'Vollständiger Name',
   );
+  assert.equal(Math.round(corrected.acroField.getWidgets()[0].getRectangle().x), 100);
+  await ui.locator('.field-card input:not([type=checkbox])').first().fill('Unwanted');
+  await ui.getByRole('button', { name: 'Lesemodus', exact: true }).click();
+  await ui.getByRole('button', { name: 'Verwerfen', exact: true }).click();
+  assert.equal(await ui.locator('.field-overlay,.field-card').count(), 0);
+  await edit();
+  assert.equal(
+    await ui.locator('.field-card input:not([type=checkbox])').first().inputValue(),
+    'Erika Muster',
+  );
+  await ui.getByRole('button', { name: 'Lesemodus', exact: true }).click();
   await openFile(saved);
+  await edit();
   assert.equal(await ui.locator('.field-card').count(), 4);
   if (process.env.EZPDF_SAMPLE) {
     await openFile(process.env.EZPDF_SAMPLE);
-    const cards = ui.locator('.field-card');
-    assert.equal(await cards.count(), 5, 'Example must detect all five gray fields');
-    const labels = await ui.locator('.field-title label').allTextContents();
+    await ui.screenshot({ path: path.join(results, 'example-viewer.png') });
+    await edit();
+    assert.equal(await ui.locator('.field-card').count(), 5);
+    const labels = await ui.locator('.field-label').allTextContents();
     assert(labels[0].includes('Zuname'));
     assert(labels[1].includes('Abholadresse'));
     assert(labels[3].includes('Telefon'));
     assert(labels[4].includes('E-Mail'));
-    await cards.first().locator('input').fill('Erika Muster');
-    await cards.nth(1).locator('input').fill('Musterstraße 12, 20095 Hamburg');
-    await cards.nth(3).locator('input').fill('040 123456');
-    await ui.screenshot({ path: path.join(results, 'example.png'), fullPage: true });
-    await ui.getByRole('button', { name: 'Speichern unter' }).click();
-    await ui.getByText('PDF gespeichert. Die Formularfelder bleiben ausfüllbar.').waitFor();
-    const result = await PDFDocument.load(await fs.readFile(saved));
-    assert.equal(result.getForm().getFields().length, 5);
-    assert(
-      result
-        .getForm()
-        .getFields()
-        .some((f) => 'getText' in f && f.getText() === 'Erika Muster'),
-    );
-    await openFile(saved);
-    assert.equal(
-      await ui.locator('.field-card').count(),
-      5,
-      'Reopening must not duplicate detected fields',
-    );
+    await ui.locator('.field-card input').first().fill('Erika Muster');
+    await ui.screenshot({ path: path.join(results, 'example-editor.png') });
+    await ui.getByRole('button', { name: 'Lesemodus', exact: true }).click();
+    await ui.getByRole('button', { name: 'Speichern', exact: true }).click();
+    await ui.getByText('PDF gespeichert · Lesemodus', { exact: true }).waitFor();
+    assert.equal(await ui.locator('.app').getAttribute('data-mode'), 'view');
+    await edit();
+    assert.equal(await ui.locator('.field-card').count(), 5);
   }
+  const longPdf = await PDFDocument.create();
+  for (let i = 0; i < 20; i++)
+    longPdf.addPage([595, 842]).drawText(`Page ${i + 1}`, { x: 80, y: 750, size: 18 });
+  const longFile = path.join(results, 'long.pdf');
+  await fs.writeFile(longFile, await longPdf.save());
+  await openFile(longFile);
+  assert(
+    (await ui.locator('.page-paint canvas').count()) < 10,
+    'Viewer should not eagerly paint all pages',
+  );
+  await ui.getByRole('spinbutton', { name: 'Seite', exact: true }).fill('20');
+  await ui.getByRole('spinbutton', { name: 'Seite', exact: true }).press('Enter');
+  await ui.locator('[data-page="19"] .page-paint canvas').waitFor();
+  assert(
+    (await ui.locator('.page-paint canvas').count()) < 10,
+    'Offscreen page canvases should be released',
+  );
+  await ui.getByRole('button', { name: 'Vergrößern', exact: true }).click({ clickCount: 3 });
+  await ui.locator('[data-page="19"] .textLayer').waitFor();
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: desktop rendering, native fields, gray detection, captions, text placement, multipage, save and reopen.',
+    'PASS: viewer isolation, text selection/copy, search, thumbnails, fit/zoom, explicit editor, field correction, cancel/discard/save, print to PDF, save and reopen.',
   );
 } catch (error) {
   const ui = await app.firstWindow();

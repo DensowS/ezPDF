@@ -121,6 +121,7 @@ export async function savePdf(bytes: Uint8Array, fields: Field[]): Promise<Uint8
         field.value === 'true' ? native.check() : native.uncheck();
       else if (native instanceof PDFDropdown || native instanceof PDFOptionList)
         field.value ? native.select(field.value) : native.clear();
+      native.acroField.dict.set(PDFName.of('TU'), PDFHexString.fromText(field.label));
       updated.add(field.nativeName!);
     } else {
       const page = document.getPage(field.page),

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <title>ezPDF</title>
+  <defs><linearGradient id="paper" x1="12" y1="6" x2="53" y2="60" gradientUnits="userSpaceOnUse"><stop stop-color="#BCA9FF"/><stop offset="1" stop-color="#8767D7"/></linearGradient></defs>
+  <path d="M17 5h23l14 14v32a8 8 0 0 1-8 8H17a8 8 0 0 1-8-8V13a8 8 0 0 1 8-8Z" fill="url(#paper)"/>
+  <path d="M40 5v9a5 5 0 0 0 5 5h9L40 5Z" fill="#E1D7FF"/>
+  <path d="M29 35H18m0 0v4a6 6 0 0 0 6 6h5m-11-10v-1a6 6 0 0 1 6-6h5v7M36 28h11L36 45h11" stroke="#FFF" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

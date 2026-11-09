@@ -1,17 +1,18 @@
 {
   "name": "ezpdf",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A focused, local-first PDF editor for Windows",
   "author": "DensowS",
   "private": true,
   "type": "module",
   "main": "desktop/main.cjs",
   "scripts": {
-    "format": "prettier --write src desktop tests docs *.json *.ts *.html *.md .github .prettierrc.json",
-    "format:check": "prettier --check src desktop tests docs *.json *.ts *.html *.md .github .prettierrc.json",
+    "format": "prettier --write src desktop tests docs scripts assets *.json *.ts *.html *.md .github .prettierrc.json",
+    "format:check": "prettier --check src desktop tests docs scripts assets *.json *.ts *.html *.md .github .prettierrc.json",
+    "icons": "node scripts/generate-icons.mjs",
     "dev": "vite --host 127.0.0.1",
     "desktop": "npm run build && electron .",
-    "build": "tsc --noEmit && vite build",
+    "build": "npm run icons && tsc --noEmit && vite build",
     "test": "tsx --test tests/*.test.ts",
     "dist": "npm run build && electron-builder --win nsis --x64 --publish never",
     "test:desktop": "node tests/desktop.mjs"
@@ -24,6 +25,7 @@
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "@types/node": "^24.0.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
@@ -39,31 +41,33 @@
   "build": {
     "appId": "de.ezpdf.desktop",
     "productName": "ezPDF",
+    "executableName": "ezPDF",
+    "copyright": "Copyright © 2026 DensowS",
     "directories": {
       "output": "release"
     },
     "files": [
       "dist/**/*",
       "desktop/**/*",
+      "build/icon.png",
+      "THIRD_PARTY_NOTICES.md",
       "package.json"
     ],
     "asar": true,
     "win": {
       "target": "nsis",
-      "signAndEditExecutable": false
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": true,
+      "signExecutable": false
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "perMachine": false,
-      "deleteAppDataOnUninstall": false
-    },
-    "fileAssociations": [
-      {
-        "ext": "pdf",
-        "name": "PDF document",
-        "role": "Editor"
-      }
-    ]
+      "deleteAppDataOnUninstall": false,
+      "include": "build/installer.nsh",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico"
+    }
   }
 }
