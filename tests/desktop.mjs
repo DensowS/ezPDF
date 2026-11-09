@@ -46,7 +46,12 @@ try {
     errors.push(error.message);
   });
   assert.equal(await app.evaluate(({ app }) => app.getName()), 'ezPDF');
-  await ui.getByRole('heading', { name: 'Einfach öffnen. Entspannt lesen.' }).waitFor();
+  await ui.getByRole('img', { name: 'ezPDF', exact: true }).waitFor();
+  assert.equal(
+    (await ui.locator('body').innerText()).trim(),
+    'PDF öffnen\noder eine PDF hierher ziehen',
+  );
+  assert.equal(await ui.getByRole('button').count(), 1);
   await ui.screenshot({ path: path.join(results, 'welcome.png') });
   async function idle() {
     await ui.locator('.banner:not(.error)').waitFor({ state: 'hidden' });
@@ -60,7 +65,7 @@ try {
     await app.evaluate(({ dialog }, filename) => {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filename] });
     }, filename);
-    await ui.getByRole('button', { name: 'Öffnen', exact: true }).click();
+    await ui.getByRole('button', { name: /^(PDF öffnen|Öffnen)$/ }).click();
     await ui.locator('.filename').getByText(path.basename(filename), { exact: true }).waitFor();
     await idle();
     assert.equal(await ui.locator('.app').getAttribute('data-mode'), 'view');
@@ -98,6 +103,41 @@ try {
   const selection = await ui.evaluate(() => getSelection()?.toString() || '');
   assert(selection.length > 0);
   assert.equal(await app.evaluate(({ clipboard }) => clipboard.readText()), selection);
+  await app.evaluate(({ Menu, clipboard }) => {
+    clipboard.writeText('context-menu-test');
+    globalThis.__ezpdfOriginalPopup = Menu.prototype.popup;
+    Menu.prototype.popup = function (options) {
+      globalThis.__ezpdfCopyMenu = this.items.map((item) => ({
+        label: item.label,
+        role: item.role,
+      }));
+      this.items[0].click({}, options.window, options.window.webContents);
+    };
+  });
+  await text.evaluate((element) => {
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    const selection = getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  });
+  const contextSelection = await ui.evaluate(() => getSelection().toString());
+  const selectedRect = await ui.evaluate(() => {
+    const rect = getSelection().getRangeAt(0).getBoundingClientRect();
+    return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+  });
+  await ui.mouse.click(selectedRect.x, selectedRect.y, { button: 'right' });
+  await app.evaluate(async () => {
+    for (let attempt = 0; attempt < 100 && !globalThis.__ezpdfCopyMenu; attempt++)
+      await new Promise((resolve) => setTimeout(resolve, 10));
+  });
+  assert.deepEqual(await app.evaluate(() => globalThis.__ezpdfCopyMenu), [
+    { label: 'Kopieren', role: 'copy' },
+  ]);
+  assert.equal(await app.evaluate(({ clipboard }) => clipboard.readText()), contextSelection);
+  await app.evaluate(({ Menu }) => {
+    Menu.prototype.popup = globalThis.__ezpdfOriginalPopup;
+  });
   await ui.evaluate(() => getSelection()?.removeAllRanges());
   await ui.getByRole('button', { name: 'Seitenübersicht umschalten' }).click();
   await edit();

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ScanLine, ShieldCheck, X } from 'lucide-react';
+import { ScanLine, X } from 'lucide-react';
 import type { Field } from '../domain';
 import type { Pdf } from '../pdf/engine';
 import { boundRect } from '../state/fields';
@@ -136,10 +136,6 @@ export function FieldInspector({
           )}
         </div>
       )}
-      <div className="aside-footer">
-        <ShieldCheck size={15} />
-        <span>Deine Dokumente bleiben auf deinem Gerät.</span>
-      </div>
     </aside>
   );
 }

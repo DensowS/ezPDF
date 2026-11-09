@@ -73,6 +73,17 @@ export function DocumentViewer(props: Props) {
       ref={viewport}
       aria-label="PDF-Dokument"
       tabIndex={0}
+      onMouseDown={(event) => {
+        const selection = window.getSelection();
+        if (
+          !props.editing &&
+          event.button === 2 &&
+          selection &&
+          !selection.isCollapsed &&
+          event.currentTarget.contains(selection.anchorNode)
+        )
+          event.preventDefault();
+      }}
       onScroll={() => {
         cancelAnimationFrame(frame.current);
         frame.current = requestAnimationFrame(() => {

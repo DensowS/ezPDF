@@ -55,7 +55,7 @@ export function useDocumentSession() {
       setAnalyzed(false);
       dispatch({ type: 'reset', fields: [] });
       setGeneration((g) => g + 1);
-      setNotice('Lesemodus · Änderungen erst über „Bearbeiten“.');
+      setNotice('');
     } catch (error) {
       await opened?.loadingTask.destroy();
       setError('PDF konnte nicht geöffnet werden: ' + errorMessage(error));
@@ -111,7 +111,7 @@ export function useDocumentSession() {
     if (dirty) setConfirmation({ type: 'leave' });
     else {
       setEditing(false);
-      setNotice('Lesemodus');
+      setNotice('');
     }
   }
   async function save(exit = false): Promise<boolean> {

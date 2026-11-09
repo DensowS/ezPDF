@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FileText, LoaderCircle, ShieldCheck, X } from 'lucide-react';
+import { FileText, LoaderCircle, X } from 'lucide-react';
 import type { Field } from '../domain';
 import { useDocumentSession, errorMessage } from '../state/useDocumentSession';
 import { DocumentViewer, type ZoomMode } from './DocumentViewer';
@@ -10,7 +10,7 @@ import { FieldInspector } from './FieldInspector';
 import { ConfirmDialog } from './ConfirmDialog';
 import { SearchBar } from './SearchBar';
 import { useSearch } from './useSearch';
-import logo from '../../assets/brand/ezpdf-icon.svg';
+import logo from '../../assets/brand/ezpdf-icon.png';
 
 export function App() {
   const session = useDocumentSession(),
@@ -173,55 +173,53 @@ export function App() {
             });
         }}
       />
-      <header>
-        <div className="brand">
-          <img src={logo} alt="ezPDF Logo" />
-          <span>
-            ez<span>PDF</span>
-          </span>
-        </div>
-        <div className="filename">
-          {session.file ? (
-            <>
-              <FileText size={15} />
-              {session.file.name}
-              {session.dirty && <span className="dot" title="Ungespeicherte Änderungen" />}
-            </>
-          ) : (
-            'Dein Raum für Dokumente'
-          )}
-        </div>
-        <span className="local">
-          <ShieldCheck size={14} />
-          Lokal auf deinem Gerät
-        </span>
-      </header>
-      <Toolbar
-        hasFile={!!session.pdf}
-        busy={!!session.busy}
-        editing={session.editing}
-        page={page}
-        total={session.pdf?.numPages || 0}
-        zoom={zoom}
-        mode={mode}
-        manual={manual}
-        thumbnails={thumbnails}
-        canUndo={!!session.history.past.length}
-        canRedo={!!session.history.future.length}
-        onOpen={() => void open()}
-        onSave={() => void session.save()}
-        onEdit={() => void session.enterEditor()}
-        onLeave={session.leaveEditor}
-        onPrint={() => void session.print()}
-        onSearch={() => search.setOpen((value) => !value)}
-        onThumbnails={() => setThumbnails((value) => !value)}
-        onManual={() => setManual((value) => !value)}
-        onUndo={() => session.dispatch({ type: 'undo' })}
-        onRedo={() => session.dispatch({ type: 'redo' })}
-        onPage={goTo}
-        onZoom={changeZoom}
-        onMode={setMode}
-      />
+      {session.pdf && (
+        <>
+          <header>
+            <div className="brand">
+              <img src={logo} alt="ezPDF Logo" />
+              <span>
+                ez<span>PDF</span>
+              </span>
+            </div>
+            <div className="filename">
+              {session.file ? (
+                <>
+                  <FileText size={15} />
+                  {session.file.name}
+                  {session.dirty && <span className="dot" title="Ungespeicherte Änderungen" />}
+                </>
+              ) : null}
+            </div>
+          </header>
+          <Toolbar
+            hasFile={!!session.pdf}
+            busy={!!session.busy}
+            editing={session.editing}
+            page={page}
+            total={session.pdf?.numPages || 0}
+            zoom={zoom}
+            mode={mode}
+            manual={manual}
+            thumbnails={thumbnails}
+            canUndo={!!session.history.past.length}
+            canRedo={!!session.history.future.length}
+            onOpen={() => void open()}
+            onSave={() => void session.save()}
+            onEdit={() => void session.enterEditor()}
+            onLeave={session.leaveEditor}
+            onPrint={() => void session.print()}
+            onSearch={() => search.setOpen((value) => !value)}
+            onThumbnails={() => setThumbnails((value) => !value)}
+            onManual={() => setManual((value) => !value)}
+            onUndo={() => session.dispatch({ type: 'undo' })}
+            onRedo={() => session.dispatch({ type: 'redo' })}
+            onPage={goTo}
+            onZoom={changeZoom}
+            onMode={setMode}
+          />
+        </>
+      )}
       {search.open && (
         <SearchBar
           query={search.query}
@@ -289,16 +287,7 @@ export function App() {
           <Welcome onOpen={() => void open()} busy={!!session.busy} />
         )}
       </main>
-      <footer>
-        <span>
-          <span className="status-dot" />
-          {session.notice || 'Bereit für dein nächstes Dokument'}
-        </span>
-        <span>
-          {session.editing ? 'Bearbeiten' : 'Lesemodus'}
-          <span className="version">ezPDF 0.2.0</span>
-        </span>
-      </footer>
+      {session.pdf && session.notice && <footer aria-live="polite">{session.notice}</footer>}
       {session.confirmation && (
         <ConfirmDialog
           busy={!!session.busy}

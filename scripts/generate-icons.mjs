@@ -1,6 +1,8 @@
 import { Resvg } from '@resvg/resvg-js';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
-const svg = await readFile(new URL('../assets/brand/ezpdf-icon.svg', import.meta.url));
+const png = await readFile(new URL('../assets/brand/ezpdf-icon.png', import.meta.url));
+// Package the approved raster artwork without redrawing or changing its design.
+const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024"><image width="1024" height="1024" href="data:image/png;base64,${png.toString('base64')}"/></svg>`;
 const output = new URL('../build/', import.meta.url);
 await mkdir(output, { recursive: true });
 const sizes = [16, 24, 32, 48, 64, 128, 256];

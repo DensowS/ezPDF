@@ -24,7 +24,9 @@ ezPDF wächst in kleinen, überprüfbaren Schritten. Version 0.2.0 trennt Lesen 
 
 `src/pdf/print.ts` erzeugt eine temporäre, nur im Druckmedium sichtbare Dokumentansicht. Jede PDF-Seite erhält ihre eigene Seitengröße ohne UI oder Ränder; anschließend öffnet der Hauptprozess den nativen Druckdialog. Bei ungespeicherten Änderungen wird nur für den Druck ein temporärer PDF-Export erzeugt, ohne den Sitzungszustand als gespeichert zu markieren. Druckseiten werden gerastert (bis zu 150 dpi).
 
-`assets/brand/ezpdf-icon.svg` ist die gemeinsame Logoquelle. `scripts/generate-icons.mjs` erzeugt PNG/ICO reproduzierbar. Der Builder editiert EXE-Ressourcen ausdrücklich, während Codesignierung unabhängig davon deaktiviert bleibt. Dadurch enthalten die Windows-Metadaten ezPDF statt Electron.
+`assets/brand/ezpdf-icon.png` ist das im Chat freigegebene Original-Icon. `scripts/generate-icons.mjs` skaliert es reproduzierbar für PNG/ICO. Der Builder editiert EXE-Ressourcen ausdrücklich, während Codesignierung unabhängig davon deaktiviert bleibt. Dadurch enthalten die Windows-Metadaten ezPDF statt Electron.
+
+Das leere Startfenster enthält nur Icon, Öffnen-Button und Drag-and-drop-Hinweis. Kopf-/Werkzeugleisten erscheinen erst mit einem Dokument; eine Statuszeile wird nur bei konkreten Rückmeldungen eingeblendet. Das native Electron-Kontextmenü bietet bei nicht editierbarer Textauswahl „Kopieren“ über die Standardrolle, ohne eine allgemeine Clipboard-IPC-API freizugeben.
 
 ## Nächste sinnvolle Extraktionen
 

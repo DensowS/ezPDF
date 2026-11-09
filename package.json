@@ -1,6 +1,6 @@
 {
   "name": "ezpdf",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A focused, local-first PDF editor for Windows",
   "author": "DensowS",
   "private": true,

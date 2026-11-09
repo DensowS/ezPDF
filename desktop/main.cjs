@@ -75,6 +75,10 @@ else {
       },
     });
     Menu.setApplicationMenu(null);
+    window.webContents.on('context-menu', (_event, params) => {
+      if (params.isEditable || !params.selectionText.length || !params.editFlags.canCopy) return;
+      Menu.buildFromTemplate([{ label: 'Kopieren', role: 'copy' }]).popup({ window });
+    });
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     window.webContents.on('will-navigate', (event) => event.preventDefault());
     window.webContents.session.setPermissionRequestHandler((_, __, callback) => callback(false));

@@ -81,8 +81,8 @@ header {
   gap: 9px;
 }
 .brand > img {
-  width: 37px;
-  height: 42px;
+  width: 34px;
+  height: 34px;
 }
 .brand > span {
   font-size: 25px;
@@ -109,17 +109,6 @@ header {
   height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
-}
-.local {
-  margin-left: auto;
-  color: #828b9a;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 11px;
-}
-.local svg {
-  color: #8cbba4;
 }
 .viewer-toolbar {
   height: 58px;
@@ -513,19 +502,6 @@ h2 b {
   color: #7f7b91;
   margin: 10px 0 0;
 }
-.aside-footer {
-  display: flex;
-  gap: 8px;
-  padding: 14px 20px;
-  border-top: 1px solid #2c303a;
-  font-size: 9px;
-  color: #8997a5;
-  line-height: 1.7;
-}
-.aside-footer svg {
-  color: #91a79b;
-  flex-shrink: 0;
-}
 .thumbnails {
   width: 188px;
   flex-shrink: 0;
@@ -592,31 +568,10 @@ h2 b {
   padding: 45px 0;
 }
 .welcome-logo {
-  width: 104px;
-  height: 113px;
-  filter: drop-shadow(0 10px 30px #a68aff15);
-  transform: rotate(-7deg);
+  width: 148px;
+  height: 148px;
   display: block;
-  margin: 0 auto 35px;
-}
-.welcome > .eyebrow {
-  color: #9b8bbd;
-}
-h1 {
-  font-size: 48px;
-  font-weight: 600;
-  line-height: 1.14;
-  letter-spacing: -2px;
-  margin: 19px 0;
-}
-h1 span {
-  color: #a6aabb;
-}
-.welcome p {
-  color: #868e9f;
-  font-size: 14px;
-  line-height: 1.8;
-  margin: 22px 0 30px;
+  margin: 0 auto 30px;
 }
 .large {
   padding: 13px 29px;
@@ -627,19 +582,6 @@ h1 span {
   color: #727a8c;
   font-size: 11px;
   margin-top: 16px;
-}
-.feature-pills {
-  display: flex;
-  gap: 24px;
-  justify-content: center;
-  margin-top: 45px;
-  color: #7a8496;
-  font-size: 11px;
-}
-.feature-pills span {
-  display: flex;
-  align-items: center;
-  gap: 7px;
 }
 footer {
   height: 33px;
@@ -652,26 +594,6 @@ footer {
   font-size: 10px;
   color: #7e8799;
   flex-shrink: 0;
-}
-footer > span:first-child {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  max-width: 80%;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.status-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #83af99;
-  flex-shrink: 0;
-}
-.version {
-  color: #515b6e;
-  margin-left: 18px;
 }
 .banner {
   display: flex;
@@ -759,9 +681,6 @@ footer > span:first-child {
   }
 }
 @media (max-width: 1120px) {
-  .local {
-    display: none;
-  }
   .viewer-toolbar {
     gap: 6px;
     padding: 0 12px;

@@ -1,11 +1,11 @@
 # ezPDF
 
-Ein lokaler PDF-Viewer für Windows mit ausdrücklich aktivierbarem Formular-Editor. Version 0.2.0 startet im ruhigen Lesemodus: keine Feldmarkierungen, keine Eingaben, keine Formularanalyse beim Öffnen. Erst **Bearbeiten** aktiviert die Werkzeuge.
+Ein lokaler PDF-Viewer für Windows mit ausdrücklich aktivierbarem Formular-Editor. Version 0.2.1 startet mit dem gewählten Icon, **PDF öffnen** und einem Drag-and-drop-Hinweis. Eine geöffnete PDF startet im Lesemodus: keine Feldmarkierungen, keine Eingaben, keine Formularanalyse. Erst **Bearbeiten** aktiviert die Werkzeuge.
 
 ## Funktionen
 
 - PDF öffnen, per Drag-and-drop laden und fortlaufend durch das Dokument scrollen. Ganze Seite oder Seitenbreite einpassen, zoomen und Seiten direkt anspringen.
-- Text markieren/kopieren und im ganzen Dokument suchen (Strg+F), inklusive hervorgehobener Treffer und Navigation über Enter / Shift+Enter. Gescannten Bildseiten fehlt ohne OCR eine Textebene.
+- Text markieren und mit **Rechtsklick → Kopieren** oder Strg+C kopieren. Im ganzen Dokument suchen (Strg+F), inklusive hervorgehobener Treffer und Navigation über Enter / Shift+Enter. Gescannten Bildseiten fehlt ohne OCR eine Textebene.
 - Einklappbare Miniaturseiten und Drucken (Strg+P) über den nativen Druckdialog. Das Drucklayout enthält nur das Dokument. Ungespeicherte Feldwerte werden beim Drucken berücksichtigt.
 - Seiten werden nur im oder nahe am sichtbaren Bereich gerendert; Offscreen-Canvases werden freigegeben. Formularanalyse erst nach Klick auf **Bearbeiten**.
 - Echte Textfelder, Kontrollkästchen und einfache Auswahllisten bearbeiten.
@@ -14,7 +14,7 @@ Ein lokaler PDF-Viewer für Windows mit ausdrücklich aktivierbarem Formular-Edi
 - Speichern unter einem frei wählbaren Namen. Neu erkannte und ergänzte Felder werden als echte AcroForm-Textfelder gespeichert.
 - Beim Wechsel zurück in den Lesemodus, beim Öffnen einer anderen Datei und beim Schließen: Änderungen speichern, verwerfen oder den Vorgang abbrechen.
 - Lokale Verarbeitung ohne Konto, Cloud oder Dokument-Uploads.
-- Eigenes SVG-Logo, reproduzierbare mehrstufige Windows-Icons und Windows-Metadaten mit **ezPDF** statt **Electron**. Windows-Installer mit Registrierung für „Öffnen mit“, Standard-Apps und Öffnen über Kommandozeile/Explorer.
+- Das im Chat gewählte Icon, reproduzierbare mehrstufige Windows-Icons und Windows-Metadaten mit **ezPDF** statt **Electron**. Windows-Installer mit Registrierung für „Öffnen mit“, Standard-Apps und Öffnen über Kommandozeile/Explorer.
 
 ## Installation
 
@@ -40,7 +40,7 @@ npm run test:desktop
 npm run dist
 ```
 
-`npm run icons` erzeugt `build/icon.ico` (16–256 px) und `build/icon.png` aus `assets/brand/ezpdf-icon.svg`. Die Quelldatei ist ohne Bildbearbeitung skalierbar. `npm run format:check` prüft die einheitliche Quellcode-Formatierung.
+`npm run icons` erzeugt `build/icon.ico` (16–256 px) und `build/icon.png` aus der unverändert übernommenen Bildvorlage `assets/brand/ezpdf-icon.png`. Es wird ausschließlich auf die benötigten Auflösungen skaliert. `npm run format:check` prüft die einheitliche Quellcode-Formatierung.
 
 Der optionale lokale Integrationstest `EZPDF_SAMPLE` prüft fünf graue Formularfelder und deren Beschriftungen in einer privaten Beispiel-PDF. Diese Datei wird weder mitgeliefert noch hochgeladen. Beispiel in PowerShell:
 
@@ -63,7 +63,7 @@ Die eingebettete Helvetica unterstützt westeuropäische Zeichen einschließlich
 
 ```text
 desktop/          Electron-Hauptprozess und isolierte IPC-Brücke
-assets/brand/     Vektor-Logo als gemeinsame Designquelle
+assets/brand/     Freigegebenes Icon als gemeinsame Designquelle
 build/            Windows-Icons und NSIS-Registrierung
 scripts/          Reproduzierbare Icon-Erzeugung
 src/domain.ts     Datenmodell ohne UI-Abhängigkeiten
